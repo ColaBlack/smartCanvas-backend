@@ -6,6 +6,7 @@ import cn.cola.smartcanvas.constant.CommonConstant;
 import cn.cola.smartcanvas.constant.UserConstant;
 import cn.cola.smartcanvas.mapper.UserMapper;
 import cn.cola.smartcanvas.model.dto.user.UserQueryRequest;
+import cn.cola.smartcanvas.model.enums.UserRoleEnum;
 import cn.cola.smartcanvas.model.po.User;
 import cn.cola.smartcanvas.model.vo.LoginUserVO;
 import cn.cola.smartcanvas.service.UserService;
@@ -163,5 +164,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
+    }
+
+    /**
+     * 是否是管理员
+     *
+     * @param user 用户
+     * @return 是否是管理员
+     */
+    @Override
+    public boolean notAdmin(User user) {
+        return user == null || !user.getUserRole().equals(UserRoleEnum.ADMIN.getValue());
     }
 }

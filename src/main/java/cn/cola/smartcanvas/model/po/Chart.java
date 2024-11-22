@@ -22,6 +22,11 @@ public class Chart implements Serializable {
     private Long id;
 
     /**
+     * 图表名称
+     */
+    private String chartName;
+
+    /**
      * 分析目的
      */
     private String goal;

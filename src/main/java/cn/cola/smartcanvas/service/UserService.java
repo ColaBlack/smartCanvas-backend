@@ -39,6 +39,7 @@ public interface UserService extends IService<User> {
 
     /**
      * 获取当前登录用户
+     *
      * @param request 请求
      * @return 当前登录用户
      */
@@ -46,6 +47,7 @@ public interface UserService extends IService<User> {
 
     /**
      * 用户注销
+     *
      * @param request 请求
      * @return 是否成功注销
      */
@@ -53,6 +55,7 @@ public interface UserService extends IService<User> {
 
     /**
      * 获取脱敏的已登录用户信息
+     *
      * @param user 用户
      * @return 脱敏后的用户信息
      */
@@ -61,9 +64,17 @@ public interface UserService extends IService<User> {
 
     /**
      * 获取查询条件
+     *
      * @param userQueryRequest 查询条件
      * @return 查询queryWrapper
      */
     QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
 
+    /**
+     * 是否是管理员
+     *
+     * @param user 用户
+     * @return 是否是管理员
+     */
+    boolean notAdmin(User user);
 }

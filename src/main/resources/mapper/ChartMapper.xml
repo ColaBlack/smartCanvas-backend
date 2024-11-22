@@ -18,7 +18,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,goal,chart_data,
+        id,chart_name,goal,chart_data,
         chart_type,generated_chart,analyzed_result,
         creater_id,create_time,update_time,
         has_deleted
