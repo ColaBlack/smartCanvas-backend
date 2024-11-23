@@ -11,11 +11,13 @@ import cn.cola.smartcanvas.constant.UserConstant;
 import cn.cola.smartcanvas.model.dto.chart.*;
 import cn.cola.smartcanvas.model.po.Chart;
 import cn.cola.smartcanvas.model.po.User;
+import cn.cola.smartcanvas.model.vo.ChartVO;
 import cn.cola.smartcanvas.model.vo.GenResultVO;
 import cn.cola.smartcanvas.service.AiService;
 import cn.cola.smartcanvas.service.ChartService;
 import cn.cola.smartcanvas.service.UserService;
 import cn.cola.smartcanvas.utils.ExcelUtils;
+import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -25,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.stream.Collectors;
 
 /**
  * 图表接口
@@ -62,8 +65,24 @@ public class ChartController {
 
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
+
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
+        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
+        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
+
         String data = ExcelUtils.excelToCsv(file);
         GenResultVO resultVO = aiService.genResult(goal, chartType, data);
+
+        User user = userService.getLoginUser(request);
+        Chart chart = new Chart();
+        chart.setChartName(name);
+        chart.setChartType(chartType);
+        chart.setGoal(goal);
+        chart.setCreaterId(user.getId());
+        chart.setChartData(data);
+        chart.setGeneratedChart(resultVO.getOption());
+        chart.setAnalyzedResult(resultVO.getResult());
+        chartService.save(chart);
         return ResultUtils.success(resultVO);
     }
 
@@ -146,7 +165,7 @@ public class ChartController {
      * @return 图表信息
      */
     @GetMapping("/get/id")
-    public BaseResponse<Chart> getChartById(long id) {
+    public BaseResponse<ChartVO> getChartById(long id) {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -154,7 +173,7 @@ public class ChartController {
         if (chart == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
-        return ResultUtils.success(chart);
+        return ResultUtils.success(new ChartVO(chart));
     }
 
     /**
@@ -164,14 +183,19 @@ public class ChartController {
      * @return 分页的图表列表
      */
     @PostMapping("/list/page")
-    public BaseResponse<Page<Chart>> listChartByPage(@RequestBody ChartQueryRequest chartQueryRequest) {
+    public BaseResponse<Page<ChartVO>> listChartByPage(@RequestBody ChartQueryRequest chartQueryRequest) {
         long current = chartQueryRequest.getCurrent();
         long size = chartQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         Page<Chart> chartPage = chartService.page(new Page<>(current, size),
                 chartService.getQueryWrapper(chartQueryRequest));
-        return ResultUtils.success(chartPage);
+
+        // 将 Chart 转换为 ChartVO
+        Page<ChartVO> voPage = new Page<>();
+        BeanUtils.copyProperties(chartPage, voPage);
+        voPage.setRecords(chartPage.getRecords().stream().map(ChartVO::new).collect(Collectors.toList()));
+        return ResultUtils.success(voPage);
     }
 
     /**

@@ -42,7 +42,7 @@ public class Chart implements Serializable {
     private String chartType;
 
     /**
-     * 生成的图表
+     * 生成的图表,option对象字符串
      */
     private String generatedChart;
 

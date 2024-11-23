@@ -25,7 +25,7 @@ public class AiServiceImpl implements AiService {
             "第一步，给出尽可能详细的数据分析结果，用$分隔开，不要输出任何多余的开头和结尾!例如:\n" +
             "$如数据呈现趋势、数据分布、数据关系、有什么异常值和启示等$\n" +
             "第二步，进行数据可视化，给出 Echarts V5 的 option 配置对象的json格式代码，合理地将数据进行可视化,用&分隔开，不要生成任何多余的注释开头和结尾!例如:\n" +
-            "&{'title': {'text': '数据分析标题','subtext': ''},'tooltip': {trigger': 'axis','axisPointer': {'type': 'shadow'}},'legend': {'data': ['图例']},'xAxis': {'data': ['1号', '2号', '3号']},'yAxis': {},'series': [{'name': '系列名','type': 'bar','data': [1, 2, 3]}]}&";
+            "&{\"title\": {\"text\": \"数据分析标题\",\"subtext\": \"\"},\"tooltip\": {\"trigger\": \"axis\",\"axisPointer\": {\"type\": \"shadow\"}},\"legend\": {\"data\": [\"图例\"]},\"xAxis\": {\"data\": [\"1号\", \"2号\", \"3号\"]},\"yAxis\": {},\"series\": [{\"name\": \"系列名\",\"type\": \"bar\",\"data\": [1, 2, 3]}]}&";
 
     @Resource
     private AiUtils aiUtils;
