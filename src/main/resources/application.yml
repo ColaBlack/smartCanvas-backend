@@ -17,29 +17,33 @@ spring:
   # 数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/smart_canvas
-    username: root
-    password: 123456
+    url: jdbc:mysql://${smartCanvas.mysql.host}:${smartCanvas.mysql.port}/${smartCanvas.mysql.database}
+    username: ${smartCanvas.mysql.username}
+    password: ${smartCanvas.mysql.password}
   # Redis 配置
   redis:
-    database: 2
-    host: localhost
-    port: 6379
+    database: ${smartCanvas.redis.database}
+    host: ${smartCanvas.redis.host}
+    port: ${smartCanvas.redis.port}
     timeout: 5000
   # 文件上传
   servlet:
     multipart:
       # 大小限制
-      max-file-size: 10MB
+      max-file-size: 1MB
 server:
   address: 0.0.0.0
-  port: 1221
+  port: ${smartCanvas.server.port}
   servlet:
     context-path: /api
     # cookie 30 天过期
     session:
       cookie:
         max-age: 2592000
+ai:
+  api-key: ${smartCanvas.ai.api-key}
+  model-name: ${smartCanvas.ai.model-name}
+  request-id-template: ${smartCanvas.ai.request-id-template}
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true # 驼峰命名

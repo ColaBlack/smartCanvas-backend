@@ -15,6 +15,11 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>easyexcel</artifactId>
+            <version>4.0.3</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
@@ -80,6 +85,11 @@
             <groupId>com.github.xiaoymin</groupId>
             <artifactId>knife4j-openapi2-spring-boot-starter</artifactId>
             <version>4.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.bigmodel.openapi</groupId>
+            <artifactId>oapi-java-sdk</artifactId>
+            <version>release-V4-2.1.0</version>
         </dependency>
     </dependencies>
     <dependencyManagement>
