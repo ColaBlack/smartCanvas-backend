@@ -11,6 +11,8 @@ import cn.cola.smartcanvas.constant.UserConstant;
 import cn.cola.smartcanvas.model.dto.chart.*;
 import cn.cola.smartcanvas.model.po.Chart;
 import cn.cola.smartcanvas.model.po.User;
+import cn.cola.smartcanvas.model.vo.GenResultVO;
+import cn.cola.smartcanvas.service.AiService;
 import cn.cola.smartcanvas.service.ChartService;
 import cn.cola.smartcanvas.service.UserService;
 import cn.cola.smartcanvas.utils.ExcelUtils;
@@ -40,54 +42,29 @@ public class ChartController {
     @Resource
     private UserService userService;
 
+    @Resource
+    private AiService aiService;
 
     /**
      * 智能分析
      *
-     * @param multipartFile       上传的文件
+     * @param file                上传的文件
      * @param genChartByAiRequest 智能分析请求
      * @param request             请求
      * @return 智能分析结果
      */
     @PostMapping("/gen")
-    public BaseResponse<String> genChartByAi(@RequestPart("file") MultipartFile multipartFile,
-                                             GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
+    public BaseResponse<GenResultVO> genChartByAi(@RequestPart("file") MultipartFile file,
+                                                  GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
         String name = genChartByAiRequest.getChartName();
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
 
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
-        StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("你是一个数据分析师，你需要分析以下数据，告诉我你的结果：\n");
-        stringBuilder.append("目标：").append(goal).append("\n");
-        stringBuilder.append("类型：").append(chartType).append("\n");
-        stringBuilder.append("名称：").append(name).append("\n");
-        String result = ExcelUtils.excelToCsv(multipartFile);
-        stringBuilder.append("数据：").append(result).append("\n");
-        return ResultUtils.success(stringBuilder.toString());
-//        // 读取到用户上传的 excel 文件，进行一个处理
-//        User loginUser = userService.getLoginUser(request);
-//        // 文件目录：根据业务、用户来划分
-//        String uuid = RandomStringUtils.randomAlphanumeric(8);
-//        String filename = uuid + "-" + multipartFile.getOriginalFilename();
-//        File file = null;
-//        try {
-//
-//            // 返回可访问地址
-//            return ResultUtils.success("");
-//        } catch (Exception e) {
-////            log.error("file upload error, filepath = " + filepath, e);
-//            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");
-//        } finally {
-//            if (file != null) {
-//                // 删除临时文件
-//                boolean delete = file.delete();
-//                if (!delete) {
-////                    log.error("file delete error, filepath = {}", filepath);
-//                }
-//            }
-//        }
+        String data = ExcelUtils.excelToCsv(file);
+        GenResultVO resultVO = aiService.genResult(goal, chartType, data);
+        return ResultUtils.success(resultVO);
     }
 
 
