@@ -53,6 +53,7 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "creater_id", userId);
         queryWrapper.eq("has_deleted", false);
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC), sortField);
+        queryWrapper.orderByDesc("update_time");
         return queryWrapper;
     }
 
