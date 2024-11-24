@@ -28,18 +28,16 @@ public class ExcelUtils {
      * @param file 文件
      * @return csv字符串
      */
-    public static String excelToCsv(MultipartFile file) {
+    public static String excelToCsv(MultipartFile file) throws IOException {
         // 读取数据
-        List<Map<Integer, String>> list = null;
-        try {
-            list = EasyExcel.read(file.getInputStream())
-                    .excelType(ExcelTypeEnum.XLSX)
-                    .sheet()
-                    .headRowNumber(0)
-                    .doReadSync();
-        } catch (IOException e) {
-            log.error("excel处理异常", e);
-        }
+        List<Map<Integer, String>> list;
+
+        list = EasyExcel.read(file.getInputStream())
+                .excelType(ExcelTypeEnum.XLSX)
+                .sheet()
+                .headRowNumber(0)
+                .doReadSync();
+
         // 如果数据为空
         if (CollUtil.isEmpty(list)) {
             return "";

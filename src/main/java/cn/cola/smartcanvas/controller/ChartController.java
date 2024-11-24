@@ -9,6 +9,7 @@ import cn.cola.smartcanvas.common.exception.BusinessException;
 import cn.cola.smartcanvas.common.exception.ThrowUtils;
 import cn.cola.smartcanvas.constant.UserConstant;
 import cn.cola.smartcanvas.model.dto.chart.*;
+import cn.cola.smartcanvas.model.enums.ChartStatusEnums;
 import cn.cola.smartcanvas.model.po.Chart;
 import cn.cola.smartcanvas.model.po.User;
 import cn.cola.smartcanvas.model.vo.ChartVO;
@@ -28,6 +29,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +55,9 @@ public class ChartController {
     @Resource
     private RedissonUtils redissonUtils;
 
+    @Resource
+    private ThreadPoolExecutor threadPoolExecutor;
+
     /**
      * 智能分析（同步）
      *
@@ -67,28 +73,12 @@ public class ChartController {
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
 
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
-        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
-
-        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
-        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
-        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
+        validGenChartParams(file, goal, name);
 
         User user = userService.getLoginUser(request);
         redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
 
-        String data = ExcelUtils.excelToCsv(file);
-        GenResultVO resultVO = aiService.genResult(goal, chartType, data);
-
-        Chart chart = new Chart();
-        chart.setChartName(name);
-        chart.setChartType(chartType);
-        chart.setGoal(goal);
-        chart.setCreaterId(user.getId());
-        chart.setChartData(data);
-        chart.setGeneratedChart(resultVO.getOption());
-        chart.setAnalyzedResult(resultVO.getResult());
-        chartService.save(chart);
+        GenResultVO resultVO = genResultTask(file, goal, chartType, name, user);
         return ResultUtils.success(resultVO);
     }
 
@@ -107,30 +97,44 @@ public class ChartController {
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
 
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
-        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
-
-        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
-        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
-        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
+        validGenChartParams(file, goal, name);
 
         User user = userService.getLoginUser(request);
         redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
-        String data = ExcelUtils.excelToCsv(file);
-        GenResultVO resultVO = aiService.genResult(goal, chartType, data);
-
-        Chart chart = new Chart();
-        chart.setChartName(name);
-        chart.setChartType(chartType);
-        chart.setGoal(goal);
-        chart.setCreaterId(user.getId());
-        chart.setChartData(data);
-        chart.setGeneratedChart(resultVO.getOption());
-        chart.setAnalyzedResult(resultVO.getResult());
-        chartService.save(chart);
-        return ResultUtils.success(resultVO);
+        CompletableFuture.runAsync(() -> genResultTask(file, goal, chartType, name, user), threadPoolExecutor);
+        return ResultUtils.success(new GenResultVO(null, "", "{}", ChartStatusEnums.PROCESSING.getValue(), ChartStatusEnums.PROCESSING.getDesc()));
     }
 
+//    @PostMapping("/retry")
+//    public BaseResponse<GenResultVO> retryGenChartByAi(@RequestPart("file") MultipartFile file,
+//                                                       String id, HttpServletRequest request) {
+//        Chart chart = chartService.getById(Long.parseLong(id));
+//        ThrowUtils.throwIf(chart == null, ErrorCode.NOT_FOUND_ERROR);
+//        User user = userService.getLoginUser(request);
+//        ThrowUtils.throwIf(!user.getId().equals(chart.getCreaterId()), ErrorCode.NO_AUTH_ERROR);
+//
+//        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+//
+//        GenResultVO resultVO = genResultTask(file, chart.getGoal(), chart.getChartType(), chart.getChartName(), user);
+//        return ResultUtils.success(resultVO);
+//    }
+//
+//    @PostMapping("/retry/async")
+//    public BaseResponse<GenResultVO> retryGenChartByAiAsync(String id, HttpServletRequest request) {
+//        Chart chart = chartService.getById(Long.parseLong(id));
+//        ThrowUtils.throwIf(chart == null, ErrorCode.NOT_FOUND_ERROR);
+//        User user = userService.getLoginUser(request);
+//        ThrowUtils.throwIf(!user.getId().equals(chart.getCreaterId()), ErrorCode.NO_AUTH_ERROR);
+//
+//        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+//        String data = chart.getChartData();
+//        if (StringUtils.isEmpty(data)) {
+//            chart.setGeneratedChart("{}");
+//            chartService.updateById(chart);
+//        }
+//        CompletableFuture.runAsync(() -> retryGenResultTask(data, chart.getGoal(), chart.getChartType(), chart.getChartName(), user), threadPoolExecutor);
+//        return ResultUtils.success(new GenResultVO(null, "", "{}", ChartStatusEnums.PROCESSING.getValue(), ChartStatusEnums.PROCESSING.getDesc()));
+//    }
 
     // region 增删改查
 
@@ -294,4 +298,109 @@ public class ChartController {
         return ResultUtils.success(result);
     }
     // endregion
+
+    /**
+     * 智能分析任务
+     *
+     * @param file      数据文件
+     * @param goal      分析目标
+     * @param chartType 图表类型
+     * @param name      图表名称
+     * @param user      提交用户
+     * @return 智能分析结果
+     */
+    private GenResultVO genResultTask(MultipartFile file, String goal, String chartType, String name, User user) {
+        Chart chart = new Chart();
+        chart.setChartName(name);
+        chart.setChartType(chartType);
+        chart.setGoal(goal);
+        chart.setCreaterId(user.getId());
+        chart.setStatus(ChartStatusEnums.PROCESSING.getValue());
+        chart.setExecmsg(ChartStatusEnums.PROCESSING.getDesc());
+
+        chartService.save(chart);
+        String data;
+        GenResultVO resultVO = new GenResultVO();
+        try {
+            data = ExcelUtils.excelToCsv(file);
+            resultVO = aiService.genResult(goal, chartType, data);
+            resultVO.setId(chart.getId());
+        } catch (Exception e) {
+            log.error("智能分析异常", e);
+            chart.setStatus(ChartStatusEnums.FAILED.getValue());
+            chart.setExecmsg(ChartStatusEnums.FAILED.getDesc());
+            chartService.updateById(chart);
+            resultVO.setStatus(ChartStatusEnums.FAILED.getValue());
+            resultVO.setExecmsg(ChartStatusEnums.FAILED.getDesc());
+            return resultVO;
+        }
+
+        chart.setChartData(data);
+        chart.setGeneratedChart(resultVO.getOption());
+        chart.setAnalyzedResult(resultVO.getResult());
+
+        chart.setStatus(ChartStatusEnums.SUCCESS.getValue());
+        chart.setExecmsg(ChartStatusEnums.SUCCESS.getDesc());
+        chartService.updateById(chart);
+        return resultVO;
+    }
+
+//    /**
+//     * 重试智能分析任务
+//     *
+//     * @param goal      分析目标
+//     * @param chartType 图表类型
+//     * @param name      图表名称
+//     * @param user      提交用户
+//     * @return 智能分析结果
+//     */
+//    private GenResultVO retryGenResultTask(String data, String goal, String chartType, String name, User user) {
+//        Chart chart = new Chart();
+//        chart.setChartName(name);
+//        chart.setChartType(chartType);
+//        chart.setGoal(goal);
+//        chart.setCreaterId(user.getId());
+//        chart.setStatus(ChartStatusEnums.PROCESSING.getValue());
+//        chart.setExecmsg(ChartStatusEnums.PROCESSING.getDesc());
+//
+//        chartService.save(chart);
+//        GenResultVO resultVO = new GenResultVO();
+//        try {
+//            resultVO = aiService.genResult(goal, chartType, data);
+//            resultVO.setId(chart.getId());
+//        } catch (Exception e) {
+//            log.error("智能分析异常", e);
+//            chart.setStatus(ChartStatusEnums.FAILED.getValue());
+//            chart.setExecmsg(ChartStatusEnums.FAILED.getDesc());
+//            chartService.updateById(chart);
+//            resultVO.setStatus(ChartStatusEnums.FAILED.getValue());
+//            resultVO.setExecmsg(ChartStatusEnums.FAILED.getDesc());
+//            return resultVO;
+//        }
+//
+//        chart.setChartData(data);
+//        chart.setGeneratedChart(resultVO.getOption());
+//        chart.setAnalyzedResult(resultVO.getResult());
+//
+//        chart.setStatus(ChartStatusEnums.SUCCESS.getValue());
+//        chart.setExecmsg(ChartStatusEnums.SUCCESS.getDesc());
+//        chartService.updateById(chart);
+//        return resultVO;
+//    }
+
+    /**
+     * 校验智能分析参数
+     *
+     * @param file 数据文件
+     * @param goal 分析目标
+     * @param name 图表名称
+     */
+    private static void validGenChartParams(MultipartFile file, String goal, String name) {
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
+
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
+        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
+        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
+    }
 }

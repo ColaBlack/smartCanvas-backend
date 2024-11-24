@@ -64,3 +64,9 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - cn.cola.smartcanvas.controller
+smartcanvas:
+  threadpool:
+    corePoolSize: 10
+    maxPoolSize: 20
+    keepAliveSeconds: 10
+    queueCapacity: 1000

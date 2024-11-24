@@ -40,6 +40,16 @@ public class ChartVO {
     private String chartType;
 
     /**
+     * 分析状态
+     */
+    private String status;
+
+    /**
+     * 运行信息
+     */
+    private String execmsg;
+
+    /**
      * 生成的图表
      */
     private String generatedChart;

@@ -20,16 +20,18 @@ create table user
 )
     comment '用户表';
 
--- 图表信息表
 -- auto-generated definition
 create table chart
 (
     id              bigint auto_increment comment '图表id'
         primary key,
+    chart_name      varchar(256)                        null comment '图表名称',
     goal            text                                null comment '分析目的',
     chart_data      text                                null comment '图表数据',
     chart_type      varchar(256)                        null comment '图表类型',
-    generated_chart text                                null comment '生成的图表',
+    status          varchar(10)                         null comment '分析状态',
+    execMsg         varchar(64)                         null comment '运行信息',
+    generated_chart text                                null comment '生成的图表,option对象字符串',
     analyzed_result text                                null comment '分析结果',
     creater_id      bigint                              null comment '图表创建者id',
     create_time     timestamp default CURRENT_TIMESTAMP not null comment '创建时间',

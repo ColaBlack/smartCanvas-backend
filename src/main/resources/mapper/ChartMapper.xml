@@ -6,9 +6,12 @@
 
     <resultMap id="BaseResultMap" type="cn.cola.smartcanvas.model.po.Chart">
         <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="chartName" column="chart_name" jdbcType="VARCHAR"/>
         <result property="goal" column="goal" jdbcType="VARCHAR"/>
         <result property="chartData" column="chart_data" jdbcType="VARCHAR"/>
         <result property="chartType" column="chart_type" jdbcType="VARCHAR"/>
+        <result property="status" column="status" jdbcType="VARCHAR"/>
+        <result property="execmsg" column="execMsg" jdbcType="VARCHAR"/>
         <result property="generatedChart" column="generated_chart" jdbcType="VARCHAR"/>
         <result property="analyzedResult" column="analyzed_result" jdbcType="VARCHAR"/>
         <result property="createrId" column="creater_id" jdbcType="BIGINT"/>
@@ -18,8 +21,9 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,chart_name,goal,chart_data,
-        chart_type,generated_chart,analyzed_result,
+        id,chart_name,goal,
+        chart_data,chart_type,status,
+        execMsg,generated_chart,analyzed_result,
         creater_id,create_time,update_time,
         has_deleted
     </sql>
