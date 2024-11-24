@@ -31,6 +31,15 @@ spring:
     multipart:
       # 大小限制
       max-file-size: 1MB
+  kafka:
+    bootstrap-servers: ${smartCanvas.kafka.servers}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group-id: ${smartCanvas.kafka.group-id}
 server:
   address: 0.0.0.0
   port: ${smartCanvas.server.port}

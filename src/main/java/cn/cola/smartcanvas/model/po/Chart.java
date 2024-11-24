@@ -1,7 +1,10 @@
 package cn.cola.smartcanvas.model.po;
 
 import com.baomidou.mybatisplus.annotation.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -14,6 +17,9 @@ import java.util.Date;
  */
 @TableName(value = "chart")
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class Chart implements Serializable {
     /**
      * 图表id

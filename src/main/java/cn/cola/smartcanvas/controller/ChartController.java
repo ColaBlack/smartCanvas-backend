@@ -24,6 +24,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -58,50 +59,94 @@ public class ChartController {
     @Resource
     private ThreadPoolExecutor threadPoolExecutor;
 
+    @Resource
+    private KafkaTemplate<String, Object> kafkaTemplate;
+
     /**
      * 智能分析（同步）
      *
-     * @param file                上传的文件
-     * @param genChartByAiRequest 智能分析请求
-     * @param request             请求
+     * @param file       上传的文件
+     * @param requestDTO 智能分析请求
+     * @param request    请求
      * @return 智能分析结果
      */
     @PostMapping("/gen")
-    public BaseResponse<GenResultVO> genChartByAi(@RequestPart("file") MultipartFile file,
-                                                  GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
-        String name = genChartByAiRequest.getChartName();
-        String goal = genChartByAiRequest.getGoal();
-        String chartType = genChartByAiRequest.getChartType();
 
-        validGenChartParams(file, goal, name);
+    public BaseResponse<GenResultVO> genChartByAi(@RequestPart("file") MultipartFile file,
+                                                  GenChartByAiRequest requestDTO, HttpServletRequest request) {
+        validGenChartParams(file, requestDTO);
 
         User user = userService.getLoginUser(request);
         redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+        Chart chart = Chart.builder()
+                .chartName(requestDTO.getChartName())
+                .chartType(requestDTO.getChartType())
+                .goal(requestDTO.getGoal())
+                .createrId(user.getId())
+                .status(ChartStatusEnums.PROCESSING.getValue())
+                .execmsg(ChartStatusEnums.PROCESSING.getDesc())
+                .build();
 
-        GenResultVO resultVO = genResultTask(file, goal, chartType, name, user);
+        chartService.save(chart);
+        String data;
+        GenResultVO resultVO = new GenResultVO();
+        try {
+            data = ExcelUtils.excelToCsv(file);
+            resultVO = aiService.genResult(requestDTO.getGoal(), requestDTO.getChartType(), data);
+            resultVO.setId(chart.getId());
+        } catch (Exception e) {
+            log.error("智能分析异常", e);
+            chart.setStatus(ChartStatusEnums.FAILED.getValue());
+            chart.setExecmsg(ChartStatusEnums.FAILED.getDesc());
+            chartService.updateById(chart);
+            resultVO.setStatus(ChartStatusEnums.FAILED.getValue());
+            resultVO.setExecmsg(ChartStatusEnums.FAILED.getDesc());
+            return ResultUtils.success(resultVO);
+        }
+
+        chart.setChartData(data);
+        chart.setGeneratedChart(resultVO.getOption());
+        chart.setAnalyzedResult(resultVO.getResult());
+
+        chart.setStatus(ChartStatusEnums.SUCCESS.getValue());
+        chart.setExecmsg(ChartStatusEnums.SUCCESS.getDesc());
+        chartService.updateById(chart);
+
         return ResultUtils.success(resultVO);
     }
 
     /**
      * 智能分析（异步）
      *
-     * @param file                上传的文件
-     * @param genChartByAiRequest 智能分析请求
-     * @param request             请求
+     * @param file       上传的文件
+     * @param requestDTO 智能分析请求
+     * @param request    请求
      * @return 智能分析结果
      */
     @PostMapping("/gen/async")
     public BaseResponse<GenResultVO> genChartAsyncByAi(@RequestPart("file") MultipartFile file,
-                                                       GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
-        String name = genChartByAiRequest.getChartName();
-        String goal = genChartByAiRequest.getGoal();
-        String chartType = genChartByAiRequest.getChartType();
-
-        validGenChartParams(file, goal, name);
+                                                       GenChartByAiRequest requestDTO, HttpServletRequest request) {
+        validGenChartParams(file, requestDTO);
 
         User user = userService.getLoginUser(request);
         redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
-        CompletableFuture.runAsync(() -> genResultTask(file, goal, chartType, name, user), threadPoolExecutor);
+        String data = ExcelUtils.excelToCsv(file);
+
+        Chart chart = Chart.builder()
+                .chartData(data)
+                .chartName(requestDTO.getChartName())
+                .chartType(requestDTO.getChartType())
+                .goal(requestDTO.getGoal())
+                .createrId(user.getId())
+                .status(ChartStatusEnums.PROCESSING.getValue())
+                .execmsg(ChartStatusEnums.PROCESSING.getDesc())
+                .build();
+
+        chartService.save(chart);
+
+        //提交给kafka消息队列
+//        kafkaTemplate.send("smartCanvas_genChartByAI", chart);
+        CompletableFuture.runAsync(() -> genResultTask(chart), threadPoolExecutor);
         return ResultUtils.success(new GenResultVO(null, "", "{}", ChartStatusEnums.PROCESSING.getValue(), ChartStatusEnums.PROCESSING.getDesc()));
     }
 
@@ -302,47 +347,28 @@ public class ChartController {
     /**
      * 智能分析任务
      *
-     * @param file      数据文件
-     * @param goal      分析目标
-     * @param chartType 图表类型
-     * @param name      图表名称
-     * @param user      提交用户
-     * @return 智能分析结果
+     * @param chart 图表对象
      */
-    private GenResultVO genResultTask(MultipartFile file, String goal, String chartType, String name, User user) {
-        Chart chart = new Chart();
-        chart.setChartName(name);
-        chart.setChartType(chartType);
-        chart.setGoal(goal);
-        chart.setCreaterId(user.getId());
-        chart.setStatus(ChartStatusEnums.PROCESSING.getValue());
-        chart.setExecmsg(ChartStatusEnums.PROCESSING.getDesc());
-
-        chartService.save(chart);
+    private void genResultTask(Chart chart) {
         String data;
-        GenResultVO resultVO = new GenResultVO();
+        GenResultVO resultVO;
         try {
-            data = ExcelUtils.excelToCsv(file);
-            resultVO = aiService.genResult(goal, chartType, data);
+            resultVO = aiService.genResult(chart.getGoal(), chart.getChartType(), chart.getChartData());
             resultVO.setId(chart.getId());
         } catch (Exception e) {
             log.error("智能分析异常", e);
             chart.setStatus(ChartStatusEnums.FAILED.getValue());
             chart.setExecmsg(ChartStatusEnums.FAILED.getDesc());
             chartService.updateById(chart);
-            resultVO.setStatus(ChartStatusEnums.FAILED.getValue());
-            resultVO.setExecmsg(ChartStatusEnums.FAILED.getDesc());
-            return resultVO;
+            return;
         }
 
-        chart.setChartData(data);
         chart.setGeneratedChart(resultVO.getOption());
         chart.setAnalyzedResult(resultVO.getResult());
 
         chart.setStatus(ChartStatusEnums.SUCCESS.getValue());
         chart.setExecmsg(ChartStatusEnums.SUCCESS.getDesc());
         chartService.updateById(chart);
-        return resultVO;
     }
 
 //    /**
@@ -391,11 +417,12 @@ public class ChartController {
     /**
      * 校验智能分析参数
      *
-     * @param file 数据文件
-     * @param goal 分析目标
-     * @param name 图表名称
+     * @param file    数据文件
+     * @param request 智能分析请求
      */
-    private static void validGenChartParams(MultipartFile file, String goal, String name) {
+    private static void validGenChartParams(MultipartFile file, GenChartByAiRequest request) {
+        String name = request.getChartName();
+        String goal = request.getGoal();
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
 

@@ -1,7 +1,5 @@
 package cn.cola.smartcanvas.service.impl;
 
-import cn.cola.smartcanvas.common.ErrorCode;
-import cn.cola.smartcanvas.common.exception.BusinessException;
 import cn.cola.smartcanvas.model.enums.ChartStatusEnums;
 import cn.cola.smartcanvas.model.vo.GenResultVO;
 import cn.cola.smartcanvas.service.AiService;
@@ -38,24 +36,25 @@ public class AiServiceImpl implements AiService {
      * @param chartType 图表可视化类型
      * @param data      csv格式数据
      * @return 分析结论
-     * @throws BusinessException 业务异常
      */
     @Override
-    public GenResultVO genResult(String goal, String chartType, String data) throws BusinessException {
+    public GenResultVO genResult(String goal, String chartType, String data) {
         String userPrompt = "【" + goal + "】\n" + "【" + chartType + "】\n" + "【" + data + "】";
         String prompt = SYSTEM_PROMPT + "\n" + userPrompt;
         String result = aiUtils.aiCaller(prompt);
         // 提取$之间的内容
         String[] results = result.split("\\$");
         if (results.length != 3) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "AI服务调用失败，请检查输入是否正确！");
+            // ai生成有误，重新调用
+            return genResult(goal, chartType, data);
         }
         String resultStr = results[1].trim();
 
         // 提取&之间的内容
         String[] options = result.split("&");
         if (options.length != 2) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "AI服务调用失败，请检查输入是否正确！");
+            // ai生成有误，重新调用
+            return genResult(goal, chartType, data);
         }
         String optionStr = options[1].trim();
         return new GenResultVO(null, resultStr, optionStr, ChartStatusEnums.SUCCESS.getValue(), ChartStatusEnums.SUCCESS.getDesc());

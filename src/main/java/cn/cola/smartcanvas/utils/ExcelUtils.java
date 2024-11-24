@@ -1,5 +1,7 @@
 package cn.cola.smartcanvas.utils;
 
+import cn.cola.smartcanvas.common.ErrorCode;
+import cn.cola.smartcanvas.common.exception.BusinessException;
 import cn.hutool.core.collection.CollUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.support.ExcelTypeEnum;
@@ -28,15 +30,19 @@ public class ExcelUtils {
      * @param file 文件
      * @return csv字符串
      */
-    public static String excelToCsv(MultipartFile file) throws IOException {
+    public static String excelToCsv(MultipartFile file) {
         // 读取数据
         List<Map<Integer, String>> list;
 
-        list = EasyExcel.read(file.getInputStream())
-                .excelType(ExcelTypeEnum.XLSX)
-                .sheet()
-                .headRowNumber(0)
-                .doReadSync();
+        try {
+            list = EasyExcel.read(file.getInputStream())
+                    .excelType(ExcelTypeEnum.XLSX)
+                    .sheet()
+                    .headRowNumber(0)
+                    .doReadSync();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "读取Excel文件失败");
+        }
 
         // 如果数据为空
         if (CollUtil.isEmpty(list)) {

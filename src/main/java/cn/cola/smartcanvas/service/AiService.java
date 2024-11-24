@@ -1,6 +1,5 @@
 package cn.cola.smartcanvas.service;
 
-import cn.cola.smartcanvas.common.exception.BusinessException;
 import cn.cola.smartcanvas.model.vo.GenResultVO;
 
 /**
@@ -17,7 +16,6 @@ public interface AiService {
      * @param chartType 图表可视化类型
      * @param data      csv格式数据
      * @return 分析结论
-     * @throws BusinessException 业务异常
      */
-    GenResultVO genResult(String goal, String chartType, String data) throws BusinessException;
+    GenResultVO genResult(String goal, String chartType, String data);
 }
