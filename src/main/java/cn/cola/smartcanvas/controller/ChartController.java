@@ -22,10 +22,7 @@ import cn.cola.smartcanvas.utils.RedissonUtils;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.BeanUtils;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -74,7 +71,11 @@ public class ChartController {
         chartService.validGenChartParams(file, requestDTO);
 
         User user = userService.getLoginUser(request);
-        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+        try {
+            redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 2L);
+        } catch (BusinessException e) {
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS_ERROR, "请求过于频繁，请稍后再试");
+        }
         Chart chart = Chart.builder()
                 .chartName(requestDTO.getChartName())
                 .chartType(requestDTO.getChartType())
@@ -126,7 +127,11 @@ public class ChartController {
         chartService.validGenChartParams(file, requestDTO);
 
         User user = userService.getLoginUser(request);
-        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+        try {
+            redissonUtils.limitRate("smartCanvas_genChartByAI_async_" + user.getId(), 2L);
+        } catch (BusinessException e) {
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS_ERROR, "请求过于频繁，请稍后再试");
+        }
         String data = ExcelUtils.excelToCsv(file);
 
         Chart chart = Chart.builder()
