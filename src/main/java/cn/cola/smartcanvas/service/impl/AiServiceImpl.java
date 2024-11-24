@@ -1,9 +1,13 @@
 package cn.cola.smartcanvas.service.impl;
 
 import cn.cola.smartcanvas.model.enums.ChartStatusEnums;
+import cn.cola.smartcanvas.model.po.Chart;
 import cn.cola.smartcanvas.model.vo.GenResultVO;
 import cn.cola.smartcanvas.service.AiService;
 import cn.cola.smartcanvas.utils.AiUtils;
+import cn.hutool.json.JSONUtil;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -39,6 +43,9 @@ public class AiServiceImpl implements AiService {
      */
     @Override
     public GenResultVO genResult(String goal, String chartType, String data) {
+        if (chartType == null) {
+            chartType = "任意统计图";
+        }
         String userPrompt = "【" + goal + "】\n" + "【" + chartType + "】\n" + "【" + data + "】";
         String prompt = SYSTEM_PROMPT + "\n" + userPrompt;
         String result = aiUtils.aiCaller(prompt);

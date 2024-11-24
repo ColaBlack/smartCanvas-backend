@@ -19,19 +19,19 @@ import cn.cola.smartcanvas.service.ChartService;
 import cn.cola.smartcanvas.service.UserService;
 import cn.cola.smartcanvas.utils.ExcelUtils;
 import cn.cola.smartcanvas.utils.RedissonUtils;
-import cn.hutool.core.io.FileUtil;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 /**
@@ -57,10 +57,7 @@ public class ChartController {
     private RedissonUtils redissonUtils;
 
     @Resource
-    private ThreadPoolExecutor threadPoolExecutor;
-
-    @Resource
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private KafkaTemplate<String, String> kafkaTemplate;
 
     /**
      * 智能分析（同步）
@@ -74,7 +71,7 @@ public class ChartController {
 
     public BaseResponse<GenResultVO> genChartByAi(@RequestPart("file") MultipartFile file,
                                                   GenChartByAiRequest requestDTO, HttpServletRequest request) {
-        validGenChartParams(file, requestDTO);
+        chartService.validGenChartParams(file, requestDTO);
 
         User user = userService.getLoginUser(request);
         redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
@@ -126,7 +123,7 @@ public class ChartController {
     @PostMapping("/gen/async")
     public BaseResponse<GenResultVO> genChartAsyncByAi(@RequestPart("file") MultipartFile file,
                                                        GenChartByAiRequest requestDTO, HttpServletRequest request) {
-        validGenChartParams(file, requestDTO);
+        chartService.validGenChartParams(file, requestDTO);
 
         User user = userService.getLoginUser(request);
         redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
@@ -145,41 +142,9 @@ public class ChartController {
         chartService.save(chart);
 
         //提交给kafka消息队列
-//        kafkaTemplate.send("smartCanvas_genChartByAI", chart);
-        CompletableFuture.runAsync(() -> genResultTask(chart), threadPoolExecutor);
+        kafkaTemplate.send("smartCanvas_genChartByAI", JSONUtil.toJsonStr(chart));
         return ResultUtils.success(new GenResultVO(null, "", "{}", ChartStatusEnums.PROCESSING.getValue(), ChartStatusEnums.PROCESSING.getDesc()));
     }
-
-//    @PostMapping("/retry")
-//    public BaseResponse<GenResultVO> retryGenChartByAi(@RequestPart("file") MultipartFile file,
-//                                                       String id, HttpServletRequest request) {
-//        Chart chart = chartService.getById(Long.parseLong(id));
-//        ThrowUtils.throwIf(chart == null, ErrorCode.NOT_FOUND_ERROR);
-//        User user = userService.getLoginUser(request);
-//        ThrowUtils.throwIf(!user.getId().equals(chart.getCreaterId()), ErrorCode.NO_AUTH_ERROR);
-//
-//        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
-//
-//        GenResultVO resultVO = genResultTask(file, chart.getGoal(), chart.getChartType(), chart.getChartName(), user);
-//        return ResultUtils.success(resultVO);
-//    }
-//
-//    @PostMapping("/retry/async")
-//    public BaseResponse<GenResultVO> retryGenChartByAiAsync(String id, HttpServletRequest request) {
-//        Chart chart = chartService.getById(Long.parseLong(id));
-//        ThrowUtils.throwIf(chart == null, ErrorCode.NOT_FOUND_ERROR);
-//        User user = userService.getLoginUser(request);
-//        ThrowUtils.throwIf(!user.getId().equals(chart.getCreaterId()), ErrorCode.NO_AUTH_ERROR);
-//
-//        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
-//        String data = chart.getChartData();
-//        if (StringUtils.isEmpty(data)) {
-//            chart.setGeneratedChart("{}");
-//            chartService.updateById(chart);
-//        }
-//        CompletableFuture.runAsync(() -> retryGenResultTask(data, chart.getGoal(), chart.getChartType(), chart.getChartName(), user), threadPoolExecutor);
-//        return ResultUtils.success(new GenResultVO(null, "", "{}", ChartStatusEnums.PROCESSING.getValue(), ChartStatusEnums.PROCESSING.getDesc()));
-//    }
 
     // region 增删改查
 
@@ -344,90 +309,4 @@ public class ChartController {
     }
     // endregion
 
-    /**
-     * 智能分析任务
-     *
-     * @param chart 图表对象
-     */
-    private void genResultTask(Chart chart) {
-        String data;
-        GenResultVO resultVO;
-        try {
-            resultVO = aiService.genResult(chart.getGoal(), chart.getChartType(), chart.getChartData());
-            resultVO.setId(chart.getId());
-        } catch (Exception e) {
-            log.error("智能分析异常", e);
-            chart.setStatus(ChartStatusEnums.FAILED.getValue());
-            chart.setExecmsg(ChartStatusEnums.FAILED.getDesc());
-            chartService.updateById(chart);
-            return;
-        }
-
-        chart.setGeneratedChart(resultVO.getOption());
-        chart.setAnalyzedResult(resultVO.getResult());
-
-        chart.setStatus(ChartStatusEnums.SUCCESS.getValue());
-        chart.setExecmsg(ChartStatusEnums.SUCCESS.getDesc());
-        chartService.updateById(chart);
-    }
-
-//    /**
-//     * 重试智能分析任务
-//     *
-//     * @param goal      分析目标
-//     * @param chartType 图表类型
-//     * @param name      图表名称
-//     * @param user      提交用户
-//     * @return 智能分析结果
-//     */
-//    private GenResultVO retryGenResultTask(String data, String goal, String chartType, String name, User user) {
-//        Chart chart = new Chart();
-//        chart.setChartName(name);
-//        chart.setChartType(chartType);
-//        chart.setGoal(goal);
-//        chart.setCreaterId(user.getId());
-//        chart.setStatus(ChartStatusEnums.PROCESSING.getValue());
-//        chart.setExecmsg(ChartStatusEnums.PROCESSING.getDesc());
-//
-//        chartService.save(chart);
-//        GenResultVO resultVO = new GenResultVO();
-//        try {
-//            resultVO = aiService.genResult(goal, chartType, data);
-//            resultVO.setId(chart.getId());
-//        } catch (Exception e) {
-//            log.error("智能分析异常", e);
-//            chart.setStatus(ChartStatusEnums.FAILED.getValue());
-//            chart.setExecmsg(ChartStatusEnums.FAILED.getDesc());
-//            chartService.updateById(chart);
-//            resultVO.setStatus(ChartStatusEnums.FAILED.getValue());
-//            resultVO.setExecmsg(ChartStatusEnums.FAILED.getDesc());
-//            return resultVO;
-//        }
-//
-//        chart.setChartData(data);
-//        chart.setGeneratedChart(resultVO.getOption());
-//        chart.setAnalyzedResult(resultVO.getResult());
-//
-//        chart.setStatus(ChartStatusEnums.SUCCESS.getValue());
-//        chart.setExecmsg(ChartStatusEnums.SUCCESS.getDesc());
-//        chartService.updateById(chart);
-//        return resultVO;
-//    }
-
-    /**
-     * 校验智能分析参数
-     *
-     * @param file    数据文件
-     * @param request 智能分析请求
-     */
-    private static void validGenChartParams(MultipartFile file, GenChartByAiRequest request) {
-        String name = request.getChartName();
-        String goal = request.getGoal();
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
-        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
-
-        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
-        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
-        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
-    }
 }

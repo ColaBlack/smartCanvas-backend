@@ -1,16 +1,21 @@
 package cn.cola.smartcanvas.service.impl;
 
+import cn.cola.smartcanvas.common.ErrorCode;
+import cn.cola.smartcanvas.common.exception.ThrowUtils;
 import cn.cola.smartcanvas.constant.CommonConstant;
 import cn.cola.smartcanvas.mapper.ChartMapper;
 import cn.cola.smartcanvas.model.dto.chart.ChartQueryRequest;
+import cn.cola.smartcanvas.model.dto.chart.GenChartByAiRequest;
 import cn.cola.smartcanvas.model.po.Chart;
 import cn.cola.smartcanvas.service.ChartService;
 import cn.cola.smartcanvas.utils.SqlUtils;
+import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 图表服务实现类
@@ -49,6 +54,24 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         queryWrapper.eq("has_deleted", false);
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC), sortField);
         return queryWrapper;
+    }
+
+    /**
+     * 校验智能分析参数
+     *
+     * @param file    数据文件
+     * @param request 智能分析请求
+     */
+    @Override
+    public void validGenChartParams(MultipartFile file, GenChartByAiRequest request) {
+        String name = request.getChartName();
+        String goal = request.getGoal();
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
+
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
+        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
+        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
     }
 }
 
