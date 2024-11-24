@@ -17,6 +17,7 @@ import cn.cola.smartcanvas.service.AiService;
 import cn.cola.smartcanvas.service.ChartService;
 import cn.cola.smartcanvas.service.UserService;
 import cn.cola.smartcanvas.utils.ExcelUtils;
+import cn.cola.smartcanvas.utils.RedissonUtils;
 import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
@@ -48,8 +49,11 @@ public class ChartController {
     @Resource
     private AiService aiService;
 
+    @Resource
+    private RedissonUtils redissonUtils;
+
     /**
-     * 智能分析
+     * 智能分析（同步）
      *
      * @param file                上传的文件
      * @param genChartByAiRequest 智能分析请求
@@ -70,10 +74,51 @@ public class ChartController {
         ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
         ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
 
+        User user = userService.getLoginUser(request);
+        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+
         String data = ExcelUtils.excelToCsv(file);
         GenResultVO resultVO = aiService.genResult(goal, chartType, data);
 
+        Chart chart = new Chart();
+        chart.setChartName(name);
+        chart.setChartType(chartType);
+        chart.setGoal(goal);
+        chart.setCreaterId(user.getId());
+        chart.setChartData(data);
+        chart.setGeneratedChart(resultVO.getOption());
+        chart.setAnalyzedResult(resultVO.getResult());
+        chartService.save(chart);
+        return ResultUtils.success(resultVO);
+    }
+
+    /**
+     * 智能分析（异步）
+     *
+     * @param file                上传的文件
+     * @param genChartByAiRequest 智能分析请求
+     * @param request             请求
+     * @return 智能分析结果
+     */
+    @PostMapping("/gen/async")
+    public BaseResponse<GenResultVO> genChartAsyncByAi(@RequestPart("file") MultipartFile file,
+                                                       GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
+        String name = genChartByAiRequest.getChartName();
+        String goal = genChartByAiRequest.getGoal();
+        String chartType = genChartByAiRequest.getChartType();
+
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 50, ErrorCode.PARAMS_ERROR, "图表名称过长");
+
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "分析数据不能为空");
+        ThrowUtils.throwIf(file.getSize() > 1024 * 1024, ErrorCode.PARAMS_ERROR, "上传文件不能超过1M");
+        ThrowUtils.throwIf(!"xlsx".equals(FileUtil.getSuffix(file.getOriginalFilename())), ErrorCode.PARAMS_ERROR, "只支持xlsx格式");
+
         User user = userService.getLoginUser(request);
+        redissonUtils.limitRate("smartCanvas_genChartByAI_" + user.getId(), 10L);
+        String data = ExcelUtils.excelToCsv(file);
+        GenResultVO resultVO = aiService.genResult(goal, chartType, data);
+
         Chart chart = new Chart();
         chart.setChartName(name);
         chart.setChartType(chartType);
