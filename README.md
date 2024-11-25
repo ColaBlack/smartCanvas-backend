@@ -5,6 +5,8 @@
 SmartCanvas-backend 是 智绘蓝图 的后端项目，主要负责处理用户上传的数据、和AI模型的交互，并将结果返回给前端。
 智绘蓝图是一个使用ai进行可视化分析的网站。你可以通过它快速的制作自己的可视化分析图表，并将其分享给其他人。
 
+支持以同步的方式提交，也可以使用异步的方式提交分析信息。异步的方式可以提高用户体验。
+
 #### 技术栈
 
 项目特色：
@@ -35,6 +37,7 @@ SmartCanvas-backend 是 智绘蓝图 的后端项目，主要负责处理用户�
 1.本项目使用了多环境配置文件，如dev、test、prod等，根据需要切换配置文件即可。
 2.为了保证我的数据安全，我没有上传dev配置文件，请自行创建。
 3.你的application-dev.yml可能长这样：
+
 ```yaml
 smartCanvas:
   mysql:
@@ -65,3 +68,10 @@ smartCanvas:
 2. 新建 Feat 分支
 3. 提交代码
 4. 新建 Pull Request
+
+#### 友情连接
+
+- [前端项目gitee地址](https://gitee.com/colablack/smart-canvas-frontend)
+- [前端项目github地址](https://github.com/ColaBlack/SmartCanvas-frontend)
+- [我的个人文档](https://colablack.github.io/)
+- 知乎搜索半名浮生 / CSDN搜索生半名浮 / B站搜索名浮半生 就能找到我哦
